@@ -1,0 +1,124 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Data Jemaah</title>
+    <!-- Tambahkan referensi ke pustaka Leaflet -->
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.7.1/dist/leaflet.css" />
+    <script src="https://unpkg.com/leaflet@1.7.1/dist/leaflet.js"></script>
+    <!-- Tambahkan referensi ke pustaka Chart.js -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/3.7.0/chart.min.js"></script>
+
+    <style>
+        /* CSS untuk mengatur ukuran font */
+        #jumlahJemaah {
+            font-size: 24px; /* Atur ukuran font sesuai kebutuhan */
+        }
+    </style>
+</head>
+<body>
+    <h1>Data Jemaah</h1>
+
+    <!-- Tambahkan elemen untuk jumlah jemaah -->
+    <p id="jumlahJemaah">Jumlah Jemaah: 0</p>
+
+    <!-- Tambahkan judul di atas peta -->
+    <div style="text-align: center;">
+        <h2>Map</h2>
+    </div>
+
+    <!-- Tambahkan elemen untuk peta -->
+    <div id="map" style="height: 400px;"></div>
+
+    <!-- Tambahkan judul di atas pie chart -->
+    <div style="text-align: center;">
+        <h2>Pie Chart</h2>
+    </div>
+
+    <!-- Tambahkan elemen untuk pie chart -->
+    <div style="width: 400px; margin: 20px auto;">
+        <canvas id="genderChart"></canvas>
+    </div>
+
+    <script>
+        // Inisialisasi peta Leaflet di luar loop
+        const map = L.map('map').setView([21.4, 39.9], 10); // Koordinat default (0,0), bisa disesuaikan dengan pusat peta yang diinginkan
+        L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png').addTo(map);
+
+        // Fungsi untuk memperbarui marker
+        function updateMarkers() {
+            // Ambil data dari endpoint /api/jemaah dan tampilkan marker ke peta serta jumlah jemaah
+            fetch('/api/jemaah')
+                .then(response => response.json())
+                .then(data => {
+                    // Hitung jumlah jemaah
+                    const jumlahJemaah = data.data.length;
+
+                    // Perbarui elemen HTML dengan jumlah jemaah
+                    const jumlahJemaahElement = document.getElementById('jumlahJemaah');
+                    jumlahJemaahElement.textContent = `Jumlah Jemaah: ${jumlahJemaah}`;
+
+                    // Hapus marker yang ada dari peta
+                    map.eachLayer(layer => {
+                        if (layer instanceof L.Marker) {
+                            map.removeLayer(layer);
+                        }
+                    });
+
+                    // Tampilkan marker ke peta dengan tooltip nama
+                    data.data.forEach(jemaah => {
+                        const marker = L.marker([jemaah.latitude, jemaah.longitude]).addTo(map);
+                        marker.bindPopup(jemaah.nama); // Menambahkan tooltip nama
+                    });
+
+                    // Memanggil fungsi fetchGenderData setelah memperbarui marker
+                    fetchGenderData(data.data);
+                })
+                .catch(error => console.error('Error:', error));
+        }
+
+        // Fungsi untuk membuat pie chart
+        function createGenderChart(data) {
+            const ctx = document.getElementById('genderChart').getContext('2d');
+            const genderChart = new Chart(ctx, {
+                type: 'pie',
+                data: {
+                    labels: [`Laki-laki (${((data[0] / (data[0] + data[1])) * 100).toFixed(2)}%)`, `Perempuan (${((data[1] / (data[0] + data[1])) * 100).toFixed(2)}%)`], // Label dengan persentase
+                    datasets: [{
+                        data: data,
+                        backgroundColor: ['#36A2EB', '#FF6384'], // Warna untuk setiap bagian pie chart
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    legend: {
+                        position: 'top', // Posisi legend (atas)
+                    },
+                }
+            });
+        }
+
+        // Fungsi untuk mengambil data gender dari endpoint /api/gender
+        function fetchGenderData(jemaahData) {
+            // Filter data berdasarkan gender
+            const males = jemaahData.filter(jemaah => jemaah.gender === 'L').length;
+            const females = jemaahData.filter(jemaah => jemaah.gender === 'P').length;
+
+            // Data yang diperlukan untuk pie chart
+            const genderData = [males, females];
+
+            // Buat pie chart
+            createGenderChart(genderData);
+        }
+
+        // Memanggil fungsi updateMarkers setiap 10 detik
+        setInterval(updateMarkers, 0); // Ubah interval menjadi 10 detik
+
+        // Memanggil fungsi updateMarkers pada saat halaman pertama kali dimuat
+        updateMarkers();
+
+    </script>
+</body>
+</html>
